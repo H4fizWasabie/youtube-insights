@@ -39,3 +39,4 @@ jobs:
           }
           EOF
           npx -y typescript@5.6 tsc -p tsconfig.ci.json
+// initial trigger
