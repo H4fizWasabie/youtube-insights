@@ -141,10 +141,18 @@ function isoDurationSeconds(d: unknown): number | null {
 /** Stats + metadata for ONE video. One API call. */
 export async function fetchVideoStats(videoId: string, cfg: YoutubeConfig): Promise<VideoStats> {
   const creds = await loadCreds(cfg);
-  const d = await callTool(creds, "YOUTUBE_GET_VIDEO_DETAILS_BATCH", {
-    id: [videoId],
-    parts: ["snippet", "statistics", "contentDetails"],
-  });
+  let d;
+  try {
+    d = await callTool(creds, "YOUTUBE_GET_VIDEO_DETAILS_BATCH", {
+      id: [videoId],
+      parts: ["snippet", "statistics", "contentDetails"],
+    });
+  } catch (e) {
+    // Composio reports a missing video as a tool error, not zero items (2026-09-27:
+    // a deleted 09-24 upload counted as a sync error every night instead of going dead).
+    if (!/requested video IDs returned results/i.test(e instanceof Error ? e.message : String(e))) throw e;
+    d = { items: [] };
+  }
   const items = d?.items ?? [];
   if (!items.length) {
     return { video_id: videoId, title: null, published_at: null, duration_s: null, views: null, likes: null, comments: null, found: false };
