@@ -74,7 +74,16 @@ export async function syncInsights(
 ): Promise<{ synced: number; snapshots: number; dead: number; errors: string[] }> {
   await ensureSchema(dbPath);
   void signal; // timeouts handled inside the youtube client
-  const rows = await queryRows(dbPath, `SELECT video_id FROM videos WHERE deleted_at IS NULL ORDER BY video_id;`);
+  // Stalest first (never-snapshotted at the top): with more live videos than maxApiCalls,
+  // ORDER BY video_id synced the same alphabetical prefix every night and starved the rest.
+  const rows = await queryRows(
+    dbPath,
+    `SELECT v.video_id FROM videos v
+     LEFT JOIN (SELECT video_id, MAX(captured_at) AS latest FROM metric_snapshots GROUP BY video_id) last
+       ON last.video_id = v.video_id
+     WHERE v.deleted_at IS NULL
+     ORDER BY last.latest IS NOT NULL, last.latest, v.video_id;`,
+  );
   const errors: string[] = [];
   let synced = 0;
   let snapshots = 0;
